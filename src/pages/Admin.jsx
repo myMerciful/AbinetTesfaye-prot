@@ -7,6 +7,8 @@ export default function Admin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [profileImagePreview, setProfileImagePreview] = useState(null);
+  const [projectImagePreview, setProjectImagePreview] = useState(null);
 
   const [activeTab, setActiveTab] = useState('profile'); // profile, projects, experience
   const [profile, setProfile] = useState({});
@@ -81,12 +83,16 @@ export default function Admin() {
         method: 'PUT',
         body: formData, // using FormData for multer
       });
-      if (!res.ok) throw new Error("Failed to update profile");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update profile");
+      }
       const data = await res.json();
       setProfile(data);
+      setProfileImagePreview(null);
       toast.success('Profile updated successfully!');
     } catch (err) {
-      toast.error('Failed to update profile');
+      toast.error(err.message || 'Failed to update profile');
     }
   };
 
@@ -102,10 +108,14 @@ export default function Admin() {
         method,
         body: formData
       });
-      if (!res.ok) throw new Error("Failed to save");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save project");
+      }
       fetchData();
       setShowProjectModal(false);
       setEditingProject(null);
+      setProjectImagePreview(null);
       toast.success("Project saved successfully!");
     } catch (err) {
       toast.error(err.message || 'Failed to save project');
@@ -244,11 +254,17 @@ export default function Admin() {
         {activeTab === 'profile' && (
           <form onSubmit={handleProfileSubmit} className="glass p-6 md:p-8 rounded-2xl max-w-3xl space-y-6">
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-6">
-              <img src={profile.imageUrl || '/profile.png'} alt="Profile" className="h-24 w-24 rounded-full border-2 border-white/10 object-cover shrink-0" />
+              <img src={profileImagePreview || profile.imageUrl || '/profile.png'} alt="Profile" className="h-24 w-24 rounded-full border-2 border-white/10 object-cover shrink-0" />
               <div className="w-full space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Update Profile Picture</label>
-                  <input type="file" name="image" accept="image/*" className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-cyan/10 file:text-neon-cyan hover:file:bg-neon-cyan/20" />
+                  <input type="file" name="image" accept="image/*" onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setProfileImagePreview(URL.createObjectURL(e.target.files[0]));
+                    } else {
+                      setProfileImagePreview(null);
+                    }
+                  }} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-neon-cyan/10 file:text-neon-cyan hover:file:bg-neon-cyan/20" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Update Resume (PDF)</label>
@@ -301,7 +317,7 @@ export default function Admin() {
         {/* Projects Tab */}
         {activeTab === 'projects' && (
           <div>
-            <button onClick={() => { setEditingProject(null); setShowProjectModal(true); }} className="mb-6 flex items-center gap-2 bg-neon-cyan text-bg font-bold px-5 py-2.5 rounded-lg hover:opacity-90">
+            <button onClick={() => { setEditingProject(null); setProjectImagePreview(null); setShowProjectModal(true); }} className="mb-6 flex items-center gap-2 bg-neon-cyan text-bg font-bold px-5 py-2.5 rounded-lg hover:opacity-90">
               <HiPlus size={18} /> Add Project
             </button>
             <div className="grid lg:grid-cols-2 gap-5">
@@ -310,7 +326,7 @@ export default function Admin() {
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-xl font-bold text-white">{p.title}</h3>
                     <div className="flex gap-2">
-                      <button onClick={() => { setEditingProject(p); setShowProjectModal(true); }} className="p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors"><HiPencil size={16} /></button>
+                      <button onClick={() => { setEditingProject(p); setProjectImagePreview(null); setShowProjectModal(true); }} className="p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors"><HiPencil size={16} /></button>
                       <button onClick={() => deleteProject(p.id)} className="p-2 text-slate-400 hover:text-red-400 bg-white/5 hover:bg-red-500/10 rounded-md transition-colors"><HiTrash size={16} /></button>
                     </div>
                   </div>
@@ -407,7 +423,16 @@ export default function Admin() {
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Project Thumbnail (Optional)</label>
-                <input type="file" name="image" accept="image/*" className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20" />
+                {(projectImagePreview || editingProject?.imageUrl) && (
+                  <img src={projectImagePreview || editingProject.imageUrl} alt="Preview" className="mb-2 h-32 w-full rounded-lg object-cover border border-white/10" />
+                )}
+                <input type="file" name="image" accept="image/*" onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setProjectImagePreview(URL.createObjectURL(e.target.files[0]));
+                  } else {
+                    setProjectImagePreview(null);
+                  }
+                }} className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-white/10 file:text-white hover:file:bg-white/20" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

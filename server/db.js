@@ -1,13 +1,27 @@
 const { Sequelize, DataTypes } = require('sequelize');
 const path = require('path');
 
-// Initialize Sequelize with SQLite for easy local development, 
-// but can be swapped to MySQL by changing dialect in production.
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: path.join(__dirname, 'database.sqlite'),
-  logging: false,
-});
+// Initialize Sequelize with Postgres if a DATABASE_URL is provided (e.g. Neon, Supabase)
+// Otherwise fallback to SQLite for easy local development.
+let sequelize;
+if (process.env.DATABASE_URL) {
+  sequelize = new Sequelize(process.env.DATABASE_URL, {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    }
+  });
+} else {
+  sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: path.join(__dirname, 'database.sqlite'),
+    logging: false,
+  });
+}
 
 const Project = sequelize.define('Project', {
   title: { type: DataTypes.STRING, allowNull: false },

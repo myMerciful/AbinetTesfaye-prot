@@ -1,27 +1,51 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const streamifier = require('streamifier');
 const { sequelize, Project, ProjectFeature, ProjectTag, Experience, Profile, Message } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Helper function to upload buffer to Cloudinary
+const uploadToCloudinary = (file) => {
+  return new Promise((resolve, reject) => {
+    // If Cloudinary is not configured, fallback to a local mock (to not break local dev without keys)
+    if (!process.env.CLOUDINARY_CLOUD_NAME) {
+      console.warn('Cloudinary not configured. Skipping upload.');
+      return resolve('/placeholder.png');
+    }
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'portfolio', resource_type: 'auto' },
+      (error, result) => {
+        if (result) {
+          resolve(result.secure_url);
+        } else {
+          reject(error);
+        }
+      }
+    );
+    streamifier.createReadStream(file.buffer).pipe(stream);
+  });
+};
+
+// Use memory storage for Multer instead of disk
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(uploadsDir));
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
-const upload = multer({ storage });
 
 // --- API Routes ---
 
@@ -41,10 +65,12 @@ app.put('/api/profile', upload.fields([{ name: 'image', maxCount: 1 }, { name: '
     const updateData = { ...req.body };
     
     if (req.files && req.files['image']) {
-      updateData.imageUrl = `http://localhost:3001/uploads/${req.files['image'][0].filename}`;
+      const url = await uploadToCloudinary(req.files['image'][0]);
+      updateData.imageUrl = url;
     }
     if (req.files && req.files['resume']) {
-      updateData.resumeUrl = `http://localhost:3001/uploads/${req.files['resume'][0].filename}`;
+      const url = await uploadToCloudinary(req.files['resume'][0]);
+      updateData.resumeUrl = url;
     }
     
     if (profile) {
@@ -89,7 +115,7 @@ app.post('/api/projects', upload.single('image'), async (req, res) => {
   try {
     const projectData = { ...req.body };
     if (req.file) {
-      projectData.imageUrl = `http://localhost:3001/uploads/${req.file.filename}`;
+      projectData.imageUrl = await uploadToCloudinary(req.file);
     }
     
     const p = await Project.create(projectData);
@@ -117,7 +143,7 @@ app.put('/api/projects/:id', upload.single('image'), async (req, res) => {
   try {
     const projectData = { ...req.body };
     if (req.file) {
-      projectData.imageUrl = `http://localhost:3001/uploads/${req.file.filename}`;
+      projectData.imageUrl = await uploadToCloudinary(req.file);
     }
     
     await Project.update(projectData, { where: { id: req.params.id } });
@@ -235,6 +261,14 @@ app.post('/api/login', (req, res) => {
   } else {
     res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
+});
+
+// Serve the React frontend in production
+const buildPath = path.join(__dirname, '../dist');
+app.use(express.static(buildPath));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(buildPath, 'index.html'));
 });
 
 // Start Server
