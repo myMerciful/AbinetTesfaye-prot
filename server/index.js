@@ -296,7 +296,7 @@ app.use((req, res) => {
 });
 
 // Start Server
-sequelize.sync().then(async () => {
+sequelize.sync({ alter: true }).then(async () => {
   // Create default admin if it doesn't exist
   const adminCount = await AdminUser.count();
   if (adminCount === 0) {
