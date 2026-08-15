@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { HiOutlineLogout, HiUser, HiBriefcase, HiFolderOpen, HiPlus, HiPencil, HiTrash, HiInbox, HiOutlineMail } from 'react-icons/hi';
+import { HiOutlineLogout, HiUser, HiBriefcase, HiFolderOpen, HiPlus, HiPencil, HiTrash, HiInbox, HiOutlineMail, HiShieldCheck } from 'react-icons/hi';
 import toast from 'react-hot-toast';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -10,7 +11,7 @@ export default function Admin() {
   const [profileImagePreview, setProfileImagePreview] = useState(null);
   const [projectImagePreview, setProjectImagePreview] = useState(null);
 
-  const [activeTab, setActiveTab] = useState('profile'); // profile, projects, experience
+  const [activeTab, setActiveTab] = useState('profile'); // profile, projects, experience, security
   const [profile, setProfile] = useState({});
   const [projects, setProjects] = useState([]);
   const [experience, setExperience] = useState([]);
@@ -19,15 +20,30 @@ export default function Admin() {
   // Modals state
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showExpModal, setShowExpModal] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
   const [editingProject, setEditingProject] = useState(null);
   const [editingExp, setEditingExp] = useState(null);
+  const lastMessageCount = useRef(0);
 
   useEffect(() => {
     if (localStorage.getItem('adminToken')) {
       setIsAuthenticated(true);
       fetchData();
+      const interval = setInterval(fetchData, 30000); // Poll every 30s
+      return () => clearInterval(interval);
     }
   }, []);
+
+  useEffect(() => {
+    if (messages.length > lastMessageCount.current && lastMessageCount.current !== 0) {
+      const newMessagesCount = messages.length - lastMessageCount.current;
+      toast(`You have ${newMessagesCount} new message${newMessagesCount > 1 ? 's' : ''}!`, {
+        icon: '📬',
+        style: { borderRadius: '10px', background: '#333', color: '#fff' }
+      });
+    }
+    lastMessageCount.current = messages.length;
+  }, [messages]);
 
   const fetchData = async () => {
     try {
@@ -122,14 +138,21 @@ export default function Admin() {
     }
   };
 
-  const deleteProject = async (id) => {
-    if (!confirm('Are you sure?')) return;
-    try {
-      await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-      fetchData();
-    } catch (err) {
-      alert('Failed to delete');
-    }
+  const deleteProject = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Project',
+      message: 'Are you sure you want to delete this project?',
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+          fetchData();
+          setConfirmModal({ isOpen: false });
+        } catch (err) {
+          toast.error('Failed to delete');
+        }
+      }
+    });
   };
 
   // --- Experience Actions ---
@@ -157,14 +180,21 @@ export default function Admin() {
     }
   };
 
-  const deleteExp = async (id) => {
-    if (!confirm('Are you sure?')) return;
-    try {
-      await fetch(`/api/experience/${id}`, { method: 'DELETE' });
-      fetchData();
-    } catch (err) {
-      alert('Failed to delete');
-    }
+  const deleteExp = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Experience',
+      message: 'Are you sure you want to delete this experience?',
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/experience/${id}`, { method: 'DELETE' });
+          fetchData();
+          setConfirmModal({ isOpen: false });
+        } catch (err) {
+          toast.error('Failed to delete');
+        }
+      }
+    });
   };
 
   // --- Message Actions ---
@@ -177,13 +207,43 @@ export default function Admin() {
     }
   };
 
-  const deleteMessage = async (id) => {
-    if (!confirm('Delete message?')) return;
+  const deleteMessage = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Message',
+      message: 'Are you sure you want to delete this message?',
+      onConfirm: async () => {
+        try {
+          await fetch(`/api/messages/${id}`, { method: 'DELETE' });
+          fetchData();
+          setConfirmModal({ isOpen: false });
+        } catch (err) {
+          toast.error('Failed to delete');
+        }
+      }
+    });
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const currentPassword = formData.get('currentPassword');
+    const newPassword = formData.get('newPassword');
     try {
-      await fetch(`/api/messages/${id}`, { method: 'DELETE' });
-      fetchData();
+      const res = await fetch('/api/password', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success('Password changed successfully!');
+        e.target.reset();
+      } else {
+        toast.error(data.message || 'Failed to change password');
+      }
     } catch (err) {
-      alert('Failed to delete message');
+      toast.error('Failed to change password');
     }
   };
 
@@ -216,11 +276,9 @@ export default function Admin() {
       
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-black/40 border-r border-white/10 p-5 flex flex-col">
-        <div className="flex items-center gap-2 mb-10">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-neon-violet to-neon-cyan font-bold text-white shadow-[0_0_15px_-3px_var(--color-neon-violet)]">
-            AT
-          </span>
-          <span className="font-bold text-white tracking-tight">CMS Admin</span>
+        <div className="flex items-center gap-3 mb-10">
+          <img src={profile.imageUrl || '/profile.png'} alt="Admin" className="h-10 w-10 rounded-full border border-white/10 object-cover" />
+          <span className="font-bold text-white tracking-tight text-xl">&lt; &gt; Abinet<span className="text-neon-cyan">.dev</span></span>
         </div>
 
         <nav className="flex-1 space-y-2">
@@ -238,6 +296,9 @@ export default function Admin() {
             {messages.filter(m => !m.read).length > 0 && (
               <span className="bg-neon-violet text-white text-xs font-bold px-2 py-0.5 rounded-full">{messages.filter(m => !m.read).length}</span>
             )}
+          </button>
+          <button onClick={() => setActiveTab('security')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'security' ? 'bg-neon-cyan/10 text-neon-cyan' : 'hover:bg-white/5 text-slate-400 hover:text-white'}`}>
+            <HiShieldCheck size={20} /> Security
           </button>
         </nav>
 
@@ -306,10 +367,32 @@ export default function Admin() {
                 <label className="block text-sm text-slate-400 mb-1">LinkedIn URL</label>
                 <input type="text" name="linkedin" defaultValue={profile.linkedin} className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white" />
               </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm text-slate-400 mb-1">Telegram URL</label>
+                <input type="text" name="telegram" defaultValue={profile.telegram} className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white" />
+              </div>
             </div>
             
             <button type="submit" className="bg-neon-cyan text-bg font-bold px-6 py-2.5 rounded-lg hover:bg-emerald-400 transition-colors">
               Save Profile
+            </button>
+          </form>
+        )}
+
+        {/* Security Tab */}
+        {activeTab === 'security' && (
+          <form onSubmit={handlePasswordChange} className="glass p-6 md:p-8 rounded-2xl max-w-md space-y-6">
+            <h2 className="text-xl font-bold text-white mb-4">Change Admin Password</h2>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Current Password</label>
+              <input type="password" name="currentPassword" required className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white" />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">New Password</label>
+              <input type="password" name="newPassword" required minLength="5" className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white" />
+            </div>
+            <button type="submit" className="w-full bg-neon-cyan text-bg font-bold px-6 py-2.5 rounded-lg hover:bg-emerald-400 transition-colors">
+              Update Password
             </button>
           </form>
         )}
@@ -496,6 +579,13 @@ export default function Admin() {
         </div>
       )}
 
+      <ConfirmModal 
+        isOpen={confirmModal.isOpen} 
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ isOpen: false })} 
+      />
     </div>
   );
 }

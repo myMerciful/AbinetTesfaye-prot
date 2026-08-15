@@ -6,7 +6,7 @@ import {
   HiPaperAirplane,
 } from "react-icons/hi";
 import { SiGithub, SiLeetcode, SiCodeforces } from "react-icons/si";
-import { FaLinkedin } from "react-icons/fa";
+import { FaLinkedin, FaTelegram } from "react-icons/fa";
 import SectionHeading from "./ui/SectionHeading";
 import Reveal from "./ui/Reveal";
 import { profile } from "../data/portfolio";
@@ -14,9 +14,10 @@ import { profile } from "../data/portfolio";
 const socials = [
   { icon: SiGithub, label: "GitHub", href: profile.github },
   { icon: FaLinkedin, label: "LinkedIn", href: profile.linkedin },
+  { icon: FaTelegram, label: "Telegram", href: profile.telegram },
   { icon: SiLeetcode, label: "LeetCode", href: profile.leetcode },
   { icon: SiCodeforces, label: "Codeforces", href: profile.codeforces },
-];
+].filter(s => s.href); // Filter out empty links
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });

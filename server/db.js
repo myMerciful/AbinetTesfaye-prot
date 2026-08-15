@@ -63,6 +63,7 @@ const Profile = sequelize.define('Profile', {
   email: { type: DataTypes.STRING },
   github: { type: DataTypes.STRING },
   linkedin: { type: DataTypes.STRING },
+  telegram: { type: DataTypes.STRING },
   resumeUrl: { type: DataTypes.STRING },
   blurb: { type: DataTypes.TEXT },
   imageUrl: { type: DataTypes.STRING, defaultValue: '/profile.png' },
@@ -75,6 +76,11 @@ const Message = sequelize.define('Message', {
   read: { type: DataTypes.BOOLEAN, defaultValue: false },
 });
 
+const AdminUser = sequelize.define('AdminUser', {
+  username: { type: DataTypes.STRING, allowNull: false, unique: true },
+  password: { type: DataTypes.STRING, allowNull: false },
+});
+
 module.exports = {
   sequelize,
   Project,
@@ -82,5 +88,6 @@ module.exports = {
   ProjectTag,
   Experience,
   Profile,
-  Message
+  Message,
+  AdminUser
 };

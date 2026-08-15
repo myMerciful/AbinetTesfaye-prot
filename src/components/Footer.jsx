@@ -1,6 +1,6 @@
 import { HiArrowUp } from "react-icons/hi";
 import { SiGithub } from "react-icons/si";
-import { FaLinkedin } from "react-icons/fa";
+import { FaLinkedin, FaTelegram } from "react-icons/fa";
 import { profile } from "../data/portfolio";
 
 export default function Footer() {
@@ -44,6 +44,17 @@ export default function Footer() {
           >
             <FaLinkedin size={18} />
           </a>
+          {profile.telegram && (
+            <a
+              href={profile.telegram}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Telegram"
+              className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-colors hover:text-white"
+            >
+              <FaTelegram size={18} />
+            </a>
+          )}
           <a
             href="#home"
             aria-label="Back to top"

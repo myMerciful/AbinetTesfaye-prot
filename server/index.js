@@ -6,7 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
-const { sequelize, Project, ProjectFeature, ProjectTag, Experience, Profile, Message } = require('./db');
+const bcrypt = require('bcryptjs');
+const { sequelize, Project, ProjectFeature, ProjectTag, Experience, Profile, Message, AdminUser } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -254,12 +255,35 @@ app.delete('/api/messages/:id', async (req, res) => {
 });
 
 // --- Auth ---
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
-  if (username === 'admin' && password === 'admin') {
-    res.json({ success: true, token: 'fake-jwt-token-for-demo' });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const admin = await AdminUser.findOne({ where: { username } });
+    if (admin && await bcrypt.compare(password, admin.password)) {
+      res.json({ success: true, token: 'fake-jwt-token-for-demo' });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/password', async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  try {
+    const admin = await AdminUser.findOne();
+    if (!admin) return res.status(404).json({ error: 'Admin not found' });
+    
+    if (await bcrypt.compare(currentPassword, admin.password)) {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await admin.update({ password: hashedPassword });
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, message: 'Incorrect current password' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -272,7 +296,15 @@ app.use((req, res) => {
 });
 
 // Start Server
-sequelize.sync().then(() => {
+sequelize.sync().then(async () => {
+  // Create default admin if it doesn't exist
+  const adminCount = await AdminUser.count();
+  if (adminCount === 0) {
+    const hashedPassword = await bcrypt.hash('admin', 10);
+    await AdminUser.create({ username: 'admin', password: hashedPassword });
+    console.log('Default admin created (admin/admin)');
+  }
+
   app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
